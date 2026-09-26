@@ -8,6 +8,13 @@
       "when": 1790367444668,
       "tag": "0000_skinny_forge",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1790433372678,
+      "tag": "0001_elite_rockslide",
+      "breakpoints": true
     }
   ]
 }
