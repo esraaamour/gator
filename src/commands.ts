@@ -1,12 +1,35 @@
 import { setUser, readConfig } from "./config.js";
 import { createUser, getUserByName, deleteAllUsers, getUsers } from "./db/queries/users.js";
-import { createFeed, getFeeds } from "./db/queries/feeds.js";
+import { createFeed, getFeeds, getFeedByUrl } from "./db/queries/feeds.js";
+import { createFeedFollow, getFeedFollowsForUser, deleteFeedFollowByUrl } from "./db/queries/feed_follows.js";
 import { fetchFeed } from "./rss.js";
 import { User, Feed } from "./db/schema.js";
 
 export type CommandHandler = (cmdName: string, ...args: string[]) => Promise<void>;
 
+export type UserCommandHandler = (
+  cmdName: string,
+  user: User,
+  ...args: string[]
+) => Promise<void>;
+
 export type CommandsRegistry = Record<string, CommandHandler>;
+
+export function middlewareLoggedIn(handler: UserCommandHandler): CommandHandler {
+  return async (cmdName: string, ...args: string[]): Promise<void> => {
+    const config = readConfig();
+    if (!config.user) {
+      throw new Error("No logged in user found");
+    }
+
+    const user = await getUserByName(config.user);
+    if (!user) {
+      throw new Error(`User '${config.user}' not found`);
+    }
+
+    await handler(cmdName, user, ...args);
+  };
+}
 
 export function registerCommand(
   registry: CommandsRegistry,
@@ -92,7 +115,11 @@ function printFeed(feed: Feed, user: User) {
   console.log(`* User:          ${user.name}`);
 }
 
-export async function handlerAddFeed(cmdName: string, ...args: string[]): Promise<void> {
+export async function handlerAddFeed(
+  cmdName: string,
+  user: User,
+  ...args: string[]
+): Promise<void> {
   if (args.length < 2) {
     throw new Error("name and url are required");
   }
@@ -100,18 +127,12 @@ export async function handlerAddFeed(cmdName: string, ...args: string[]): Promis
   const name = args[0];
   const url = args[1];
 
-  const config = readConfig();
-  if (!config.user) {
-    throw new Error("No logged in user found");
-  }
-
-  const user = await getUserByName(config.user);
-  if (!user) {
-    throw new Error(`User '${config.user}' not found`);
-  }
-
   const feed = await createFeed(name, url, user.id);
   printFeed(feed, user);
+
+  const follow = await createFeedFollow(user.id, feed.id);
+  console.log(`* Feed Name:     ${follow.feedName}`);
+  console.log(`* User Name:     ${follow.userName}`);
 }
 
 export async function handlerFeeds(cmdName: string, ...args: string[]): Promise<void> {
@@ -122,4 +143,49 @@ export async function handlerFeeds(cmdName: string, ...args: string[]): Promise<
     console.log(`* URL: ${feed.feedUrl}`);
     console.log(`* User: ${feed.userName}`);
   }
+}
+
+export async function handlerFollow(
+  cmdName: string,
+  user: User,
+  ...args: string[]
+): Promise<void> {
+  if (args.length === 0 || !args[0]) {
+    throw new Error("a feed URL is required");
+  }
+  const url = args[0];
+
+  const feed = await getFeedByUrl(url);
+  if (!feed) {
+    throw new Error(`Feed with URL '${url}' not found`);
+  }
+
+  const follow = await createFeedFollow(user.id, feed.id);
+  console.log(`* Feed Name:     ${follow.feedName}`);
+  console.log(`* User Name:     ${follow.userName}`);
+}
+
+export async function handlerFollowing(
+  cmdName: string,
+  user: User,
+  ...args: string[]
+): Promise<void> {
+  const follows = await getFeedFollowsForUser(user.id);
+  for (const f of follows) {
+    console.log(`* ${f.feedName}`);
+  }
+}
+
+export async function handlerUnfollow(
+  cmdName: string,
+  user: User,
+  ...args: string[]
+): Promise<void> {
+  if (args.length === 0 || !args[0]) {
+    throw new Error("a feed URL is required");
+  }
+  const url = args[0];
+
+  await deleteFeedFollowByUrl(user.id, url);
+  console.log(`Unfollowed feed with URL: ${url}`);
 }

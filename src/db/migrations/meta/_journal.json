@@ -15,6 +15,13 @@
       "when": 1790433372678,
       "tag": "0001_elite_rockslide",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790433620974,
+      "tag": "0002_lovely_skin",
+      "breakpoints": true
     }
   ]
 }
